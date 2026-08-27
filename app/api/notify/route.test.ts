@@ -20,7 +20,15 @@ afterEach(() => vi.restoreAllMocks());
 const post = (body: unknown) =>
   POST(new Request("http://localhost/api/notify", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  }));
+
+const postPlainText = (text: string) =>
+  POST(new Request("http://localhost/api/notify", {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: text,
   }));
 
 describe("POST /api/notify", () => {
@@ -79,6 +87,36 @@ describe("POST /api/notify", () => {
 
   it("returns 400 when text is missing", async () => {
     const response = await post({});
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe("bad_request");
+  });
+
+  it("accepts a plain-text body, which is how MacroDroid sends it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await postPlainText(SAMPLE);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.parsed.amount).toBe("200.00");
+    expect(fetchMock).toHaveBeenCalled();
+  });
+
+  it("handles quotes and newlines in a plain-text body", async () => {
+    // The exact shape that would break a JSON body MacroDroid built by hand.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("OK", { status: 200 })));
+
+    const withQuotes = SAMPLE.replace("รายการเงินเข้า", 'รายการเงินเข้า "K PLUS"');
+    const json = await (await postPlainText(withQuotes)).json();
+
+    expect(json.ok).toBe(true);
+    expect(json.parsed.amount).toBe("200.00");
+    expect(json.rawText).toBe(withQuotes);
+  });
+
+  it("returns 400 for an empty body", async () => {
+    const response = await postPlainText("   ");
     expect(response.status).toBe(400);
     expect((await response.json()).error).toBe("bad_request");
   });
