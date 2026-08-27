@@ -34,28 +34,46 @@ Copy `.env.example` to `.env.local` and set:
 | `STN_KEY` | Station key — **placeholder until the real one is issued** |
 | `TARGET_URL` | p-points.com endpoint |
 
+## Request formats
+
+`POST /api/notify` accepts either:
+
+- **Plain text** (`Content-Type: text/plain`) — the body *is* the notification
+  text. This is what MacroDroid should send: its magic-text substitution is
+  literal, so a notification containing a quote or newline would corrupt a JSON
+  body it assembled by hand. Raw text has nothing to escape.
+- **JSON** (`Content-Type: application/json`) — `{"text": "...", "dryRun": true}`.
+  `dryRun` parses and builds without forwarding; the demo page uses this.
+
 ## MacroDroid setup
 
 The phone must be Android; iOS and macOS give no app access to other apps'
 notification content.
 
-1. Install LINE on the phone and log in as a **secondary device**, then log
-   in to the K PLUS LINE OA so its alerts arrive there.
+1. Install LINE on the phone and log in as a **secondary device** (so it does
+   not displace LINE on the main phone), then make sure K PLUS alerts arrive
+   there.
 2. Install MacroDroid from the Play Store and add a macro:
    - **Trigger:** Notification → Notification Received → application: LINE
    - **Action:** Connectivity → HTTP Request
-     - Method `POST`, Content type `application/json`
+     - Method: `POST`
      - URL: `https://<your-deployment>/api/notify`
-     - Body: `{"text": "[notification_title] [notification_text]"}`
+     - Content type: `text/plain`
+     - Body: the notification magic text (insert it with MacroDroid's magic
+       text button rather than typing it, since the exact variable name varies
+       by version — typically `[notification_title]` and `[notification_text]`)
 3. Turn **off** battery optimisation for both MacroDroid and LINE, or the
-   system will kill them in the background and alerts will be missed.
+   system will kill them in the background and alerts will be missed. Some
+   manufacturers (Samsung especially) are aggressive enough that this alone
+   makes the setup unreliable.
 
 ### If parsing fails
 
-The response body records what was received. `{"error":"parse_error"}`
-includes `rawText` — the exact string MacroDroid sent. Paste that into the
-demo page to iterate on it, and adjust the patterns in
-`lib/parseNotification.ts` to match.
+Every response echoes `rawText` — the exact string MacroDroid sent. A
+`{"error":"parse_error"}` response also names the `field` that could not be
+found. Paste that `rawText` into the demo page to iterate, then adjust the
+patterns in `lib/parseNotification.ts` to match what the notification really
+looks like.
 
 ## Tests
 
