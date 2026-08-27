@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getConfig } from "./config";
+import { getConfig, getGmailConfig } from "./config";
 
-const ENV_KEYS = ["STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL"];
+const ENV_KEYS = [
+  "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL",
+  "GMAIL_USER", "GMAIL_APP_PASSWORD", "BANK_EMAIL_FROM", "GMAIL_MAILBOX", "POLL_SECRET",
+];
 let saved: Record<string, string | undefined>;
 
 beforeEach(() => {
@@ -34,5 +37,35 @@ describe("getConfig", () => {
   it("throws naming the variable that is missing", () => {
     for (const k of ENV_KEYS) delete process.env[k];
     expect(() => getConfig()).toThrow(/STN_ID/);
+  });
+});
+
+describe("getGmailConfig", () => {
+  beforeEach(() => {
+    process.env.GMAIL_USER = "station@gmail.com";
+    process.env.GMAIL_APP_PASSWORD = "abcd efgh ijkl mnop";
+    process.env.BANK_EMAIL_FROM = "no-reply@kasikornbank.com";
+    process.env.POLL_SECRET = "s3cret";
+  });
+
+  it("reads the mail settings from the environment", () => {
+    process.env.GMAIL_MAILBOX = "Bank";
+    expect(getGmailConfig()).toEqual({
+      user: "station@gmail.com",
+      appPassword: "abcd efgh ijkl mnop",
+      bankFrom: "no-reply@kasikornbank.com",
+      mailbox: "Bank",
+      pollSecret: "s3cret",
+    });
+  });
+
+  it("defaults the mailbox to INBOX", () => {
+    delete process.env.GMAIL_MAILBOX;
+    expect(getGmailConfig().mailbox).toBe("INBOX");
+  });
+
+  it("throws naming the variable that is missing", () => {
+    delete process.env.GMAIL_APP_PASSWORD;
+    expect(() => getGmailConfig()).toThrow(/GMAIL_APP_PASSWORD/);
   });
 });
