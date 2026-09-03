@@ -8,6 +8,9 @@ import {
   ParseError,
 } from "@/lib/parseNotification";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 type RequestPayload = { text: string; dryRun: boolean };
 
 /**

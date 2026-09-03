@@ -2,6 +2,10 @@ import { getConfig, getGmailConfig } from "@/lib/config";
 import { connectGmail } from "@/lib/gmail";
 import { processUnread } from "@/lib/pollMail";
 
+// IMAP needs a raw TCP socket, which the Edge runtime cannot open.
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /** Reads the caller's secret from either the Authorization header or ?secret=. */
 function presentedSecret(request: Request): string {
   const header = request.headers.get("authorization") ?? "";
