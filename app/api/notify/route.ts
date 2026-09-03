@@ -1,7 +1,12 @@
 import { getConfig } from "@/lib/config";
 import { buildAddat } from "@/lib/buildAddat";
 import { forwardToPPoints, buildTargetUrl } from "@/lib/forwardToPPoints";
-import { isIncomingTransfer, parseNotification, ParseError } from "@/lib/parseNotification";
+import {
+  isFromExpectedSender,
+  isIncomingTransfer,
+  parseNotification,
+  ParseError,
+} from "@/lib/parseNotification";
 
 type RequestPayload = { text: string; dryRun: boolean };
 
@@ -48,6 +53,20 @@ export async function POST(request: Request): Promise<Response> {
 
   const { text, dryRun } = payload;
 
+  const config = getConfig();
+
+  // Checked before the wording, because wording alone proves nothing: the phone
+  // forwards every LINE notification, so a message typed by anyone in any chat
+  // would otherwise be relayed as a real transaction.
+  if (!isFromExpectedSender(text, config.requireSender)) {
+    return Response.json({
+      ok: true,
+      skipped: true,
+      reason: "sender_not_trusted",
+      rawText: text,
+    });
+  }
+
   // Unrelated LINE messages are not failures — 200 keeps MacroDroid's
   // trigger history clean and stops it retrying.
   if (!isIncomingTransfer(text)) {
@@ -58,8 +77,6 @@ export async function POST(request: Request): Promise<Response> {
       rawText: text,
     });
   }
-
-  const config = getConfig();
 
   let parsed;
   try {

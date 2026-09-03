@@ -9,6 +9,7 @@ const CONFIG: Config = {
   bankSenderId: "756697110107",
   stnKey: "22162",
   targetUrl: "https://p-points.com/sms_add.php",
+  requireSender: "",
 };
 
 const MONEY_IN = `รายการเงินเข้า
@@ -115,6 +116,28 @@ describe("processUnread", () => {
 
     expect(summary).toMatchObject({ checked: 2, forwarded: 1, needsAttention: 1 });
     expect(seen).toEqual([2]);
+  });
+
+  it("ignores mail that does not name the bank when a sender is required", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { client, seen } = fakeClient([email(9, MONEY_IN)]);
+
+    const summary = await processUnread(client, { ...CONFIG, requireSender: "K PLUS" });
+
+    expect(summary.forwarded).toBe(0);
+    expect(summary.outcomes[0].status).toBe("ignored");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(seen).toEqual([9]);
+  });
+
+  it("relays mail that does name the bank", async () => {
+    stubFetch(200);
+    const { client } = fakeClient([email(10, `K PLUS\n${MONEY_IN}`)]);
+
+    const summary = await processUnread(client, { ...CONFIG, requireSender: "K PLUS" });
+
+    expect(summary.forwarded).toBe(1);
   });
 
   it("reports an empty mailbox without touching the network", async () => {

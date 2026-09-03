@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { POST } from "./route";
 
 const SAMPLE = `รายการเงินเข้า
@@ -119,6 +119,40 @@ describe("POST /api/notify", () => {
     const response = await postPlainText("   ");
     expect(response.status).toBe(400);
     expect((await response.json()).error).toBe("bad_request");
+  });
+
+  describe("when a trusted sender is configured", () => {
+    beforeEach(() => {
+      process.env.REQUIRE_SENDER = "K PLUS";
+    });
+    afterEach(() => {
+      delete process.env.REQUIRE_SENDER;
+    });
+
+    it("relays an alert that names the bank", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const json = await (await postPlainText(`K PLUS\n${SAMPLE}`)).json();
+
+      expect(json.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    it("refuses a lookalike message typed by someone in a LINE chat", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      // Word-for-word a real alert, but with no bank name — which is all a
+      // person in any LINE chat would need to fake a transaction.
+      const response = await postPlainText(SAMPLE);
+      const json = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(json.skipped).toBe(true);
+      expect(json.reason).toBe("sender_not_trusted");
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it("returns 502 when p-points.com fails", async () => {

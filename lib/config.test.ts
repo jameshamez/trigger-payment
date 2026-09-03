@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getConfig, getGmailConfig } from "./config";
 
 const ENV_KEYS = [
-  "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL",
+  "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL", "REQUIRE_SENDER",
   "GMAIL_USER", "GMAIL_APP_PASSWORD", "BANK_EMAIL_FROM", "GMAIL_MAILBOX", "POLL_SECRET",
 ];
 let saved: Record<string, string | undefined>;
@@ -25,13 +25,27 @@ describe("getConfig", () => {
     process.env.STN_KEY = "22162";
     process.env.TARGET_URL = "https://p-points.com/sms_add.php";
 
+    process.env.REQUIRE_SENDER = "K PLUS";
+
     expect(getConfig()).toEqual({
       stnId: "S-24001",
       accountCode: "X-7689",
       bankSenderId: "756697110107",
       stnKey: "22162",
       targetUrl: "https://p-points.com/sms_add.php",
+      requireSender: "K PLUS",
     });
+  });
+
+  it("leaves requireSender empty when it is not set, disabling the check", () => {
+    process.env.STN_ID = "S-24001";
+    process.env.ACCOUNT_CODE = "X-7689";
+    process.env.BANK_SENDER_ID = "756697110107";
+    process.env.STN_KEY = "22162";
+    process.env.TARGET_URL = "https://p-points.com/sms_add.php";
+    delete process.env.REQUIRE_SENDER;
+
+    expect(getConfig().requireSender).toBe("");
   });
 
   it("throws naming the variable that is missing", () => {

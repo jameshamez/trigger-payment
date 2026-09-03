@@ -4,6 +4,16 @@ export type Config = {
   bankSenderId: string;
   stnKey: string;
   targetUrl: string;
+  /**
+   * Text that must appear in an alert for it to be trusted — the bank's name as
+   * it shows in the notification, e.g. "K PLUS".
+   *
+   * MacroDroid fires on every LINE notification, so without this a message
+   * typed by anyone in any chat could be relayed as a real transaction. Empty
+   * disables the check, which is only appropriate while you are still
+   * discovering what the real notification text looks like.
+   */
+  requireSender: string;
 };
 
 function required(name: string): string {
@@ -19,6 +29,7 @@ export function getConfig(): Config {
     bankSenderId: required("BANK_SENDER_ID"),
     stnKey: required("STN_KEY"),
     targetUrl: required("TARGET_URL"),
+    requireSender: process.env.REQUIRE_SENDER ?? "",
   };
 }
 

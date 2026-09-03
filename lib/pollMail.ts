@@ -2,7 +2,12 @@ import type { Config } from "./config";
 import type { BankEmail, MailClient } from "./gmail";
 import { buildAddat } from "./buildAddat";
 import { forwardToPPoints } from "./forwardToPPoints";
-import { isIncomingTransfer, parseNotification, ParseError } from "./parseNotification";
+import {
+  isFromExpectedSender,
+  isIncomingTransfer,
+  parseNotification,
+  ParseError,
+} from "./parseNotification";
 
 export type PollOutcome =
   | { uid: number; status: "forwarded"; amount: string; balance: string; addat: string }
@@ -26,7 +31,12 @@ export type PollSummary = {
 async function processEmail(email: BankEmail, config: Config): Promise<PollOutcome> {
   const body = `${email.subject}\n${email.text}`;
 
-  if (!isIncomingTransfer(body)) {
+  // IMAP already restricts this to one From address, but a From header is
+  // trivially forged, so the bank's name must appear in the message too.
+  if (
+    !isFromExpectedSender(body, config.requireSender) ||
+    !isIncomingTransfer(body)
+  ) {
     return { uid: email.uid, status: "ignored", subject: email.subject };
   }
 

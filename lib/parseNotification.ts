@@ -35,6 +35,24 @@ export function isIncomingTransfer(text: string): boolean {
   return text.includes("รายการเงินเข้า") && text.includes("จำนวนเงิน");
 }
 
+/**
+ * Whether the alert carries the expected bank's name.
+ *
+ * The phone forwards every LINE notification, and the endpoint is open, so the
+ * wording of an alert proves nothing on its own — anyone could type it. This
+ * narrows what is accepted to text that also names the bank.
+ *
+ * It is a filter, not authentication: someone who knows both the URL and the
+ * bank's name can still post. Treat it as the first of several defences, and
+ * keep the deployment URL private.
+ *
+ * An empty `expected` disables the check and everything is trusted.
+ */
+export function isFromExpectedSender(text: string, expected: string): boolean {
+  if (expected.trim() === "") return true;
+  return text.toLowerCase().includes(expected.trim().toLowerCase());
+}
+
 export function parseNotification(text: string): ParsedNotification {
   const amount = text.match(AMOUNT_PATTERN);
   if (!amount) throw new ParseError("amount");

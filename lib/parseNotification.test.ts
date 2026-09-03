@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseNotification, isIncomingTransfer, ParseError } from "./parseNotification";
+import {
+  parseNotification,
+  isIncomingTransfer,
+  isFromExpectedSender,
+  ParseError,
+} from "./parseNotification";
 
 const SAMPLE = `รายการเงินเข้า
 26 ส.ค. 69 15:07 น.
@@ -14,6 +19,27 @@ describe("isIncomingTransfer", () => {
 
   it("rejects an unrelated LINE message", () => {
     expect(isIncomingTransfer("สวัสดีครับ วันนี้ประชุมกี่โมง")).toBe(false);
+  });
+});
+
+describe("isFromExpectedSender", () => {
+  it("accepts an alert naming the expected bank", () => {
+    expect(isFromExpectedSender(`K PLUS\n${SAMPLE}`, "K PLUS")).toBe(true);
+  });
+
+  it("rejects a lookalike message from someone else", () => {
+    // The whole point: a friend can type this into any LINE chat, and the
+    // phone forwards every LINE notification.
+    expect(isFromExpectedSender(SAMPLE, "K PLUS")).toBe(false);
+  });
+
+  it("ignores case and surrounding spaces in the configured name", () => {
+    expect(isFromExpectedSender("k plus แจ้งเตือน", "  K PLUS  ")).toBe(true);
+  });
+
+  it("trusts everything when no sender is configured", () => {
+    expect(isFromExpectedSender(SAMPLE, "")).toBe(true);
+    expect(isFromExpectedSender(SAMPLE, "   ")).toBe(true);
   });
 });
 
