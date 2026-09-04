@@ -1,7 +1,7 @@
 import type { Config } from "./config";
 import type { BankEmail, MailClient } from "./gmail";
 import { buildAddat } from "./buildAddat";
-import { forwardToPPoints } from "./forwardToPPoints";
+import { forwardAndLog } from "./forwardAndLog";
 import {
   isFromExpectedSender,
   isIncomingTransfer,
@@ -57,8 +57,7 @@ async function processEmail(email: BankEmail, config: Config): Promise<PollOutco
   }
 
   const addat = buildAddat(parsed, config);
-  const upstream = await forwardToPPoints(addat, config);
-
+  const upstream = await forwardAndLog("poll", parsed.amount, parsed.balance, addat, config);
   if (!upstream.ok) {
     return {
       uid: email.uid,

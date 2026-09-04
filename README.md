@@ -49,6 +49,8 @@ MacroDroid path needs; the Gmail block can stay empty unless you use it.
 | `BANK_EMAIL_FROM` | Only unread mail from this address is considered |
 | `GMAIL_MAILBOX` | Defaults to `INBOX` |
 | `POLL_SECRET` | Shared secret guarding `/api/poll` |
+| `SUPABASE_URL` | Supabase project URL, for logging (optional) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service_role key, for logging (optional) |
 
 `.env.local` is gitignored. Never commit real credentials.
 
@@ -124,6 +126,28 @@ minute:
 ```
 https://<your-deployment>/api/poll?secret=<POLL_SECRET>
 ```
+
+## Logging to Supabase and the `/logs` page
+
+Every attempt to forward to p-points.com — from both `/api/notify` and
+`/api/poll` — is recorded in Supabase: when, what was sent (`addat`, amount,
+balance), and what p-points.com answered. `/logs` shows the latest 200 of
+them. It has no login, so treat the deployment URL as sensitive the same way
+you already do for `/api/notify`.
+
+Logging is optional and best-effort: with no Supabase configured, forwarding
+still works exactly as before, and a Supabase outage never fails a forward —
+it's only reported to the server console.
+
+Setup:
+
+1. Create a free project at https://supabase.com.
+2. Project Settings → API — copy the **Project URL** and the **service_role**
+   key (not the `anon` key: this is server-only and bypasses row-level
+   security, which is what lets `/logs` read without its own login).
+3. SQL Editor → New query — paste and run `supabase/schema.sql`.
+4. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (and in
+   the Vercel project's environment variables for the deployment).
 
 ## When parsing fails
 

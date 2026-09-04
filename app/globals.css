@@ -95,3 +95,44 @@ button {
 }
 
 button:disabled { opacity: 0.6; cursor: default; }
+
+main.logs { max-width: 72rem; }
+
+.error { color: #d33; }
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+th, td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+td.mono {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  max-width: 22rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+td.ok { color: #1a8a3f; }
+td.fail { color: #d33; }

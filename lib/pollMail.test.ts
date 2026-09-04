@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { processUnread } from "./pollMail";
 import type { BankEmail, MailClient } from "./gmail";
 import type { Config } from "./config";
@@ -33,7 +33,11 @@ function fakeClient(emails: BankEmail[]) {
   return { client, seen };
 }
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+});
 
 const stubFetch = (status: number, body = "OK") =>
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status })));
@@ -138,6 +142,44 @@ describe("processUnread", () => {
     const summary = await processUnread(client, { ...CONFIG, requireSender: "K PLUS" });
 
     expect(summary.forwarded).toBe(1);
+  });
+
+  describe("when Supabase logging is configured", () => {
+    beforeEach(() => {
+      process.env.SUPABASE_URL = "https://xyzcompany.supabase.co";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    });
+
+    it("records the forward attempt in Supabase", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("OK", { status: 200 })) // p-points.com
+        .mockResolvedValueOnce(new Response("", { status: 201 })); // Supabase insert
+      vi.stubGlobal("fetch", fetchMock);
+      const { client } = fakeClient([email(1, MONEY_IN)]);
+
+      await processUnread(client, CONFIG);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [logUrl, logInit] = fetchMock.mock.calls[1];
+      expect(logUrl).toBe("https://xyzcompany.supabase.co/rest/v1/forward_logs");
+      expect(JSON.parse(logInit.body)).toMatchObject({
+        source: "poll",
+        amount: "200.00",
+        balance: "207.85",
+        ok: true,
+      });
+    });
+
+    it("does not log an ignored email, since nothing was sent", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const { client } = fakeClient([email(7, "โปรโมชันบัตรเครดิต")]);
+
+      await processUnread(client, CONFIG);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 
   it("reports an empty mailbox without touching the network", async () => {

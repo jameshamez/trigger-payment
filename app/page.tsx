@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 const SAMPLE = `รายการเงินเข้า
 26 ส.ค. 69 15:07 น.
@@ -36,7 +37,7 @@ export default function Home() {
       <h1>LINE → p-points relay</h1>
       <p className="sub">
         วางข้อความแจ้งเตือนจาก LINE (K PLUS) แล้วกดส่ง เพื่อดูค่าที่ระบบอ่านได้
-        และ URL ที่จะยิงไป p-points.com
+        และ URL ที่จะยิงไป p-points.com — ดู <Link href="/logs">ประวัติการส่ง</Link> ทั้งหมดได้ที่นี่
       </p>
 
       <label htmlFor="text">ข้อความแจ้งเตือน</label>

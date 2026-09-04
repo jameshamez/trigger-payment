@@ -1,6 +1,7 @@
 import { getConfig } from "@/lib/config";
 import { buildAddat } from "@/lib/buildAddat";
-import { forwardToPPoints, buildTargetUrl } from "@/lib/forwardToPPoints";
+import { buildTargetUrl } from "@/lib/forwardToPPoints";
+import { forwardAndLog } from "@/lib/forwardAndLog";
 import {
   isFromExpectedSender,
   isIncomingTransfer,
@@ -107,7 +108,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const upstream = await forwardToPPoints(addat, config);
+  const upstream = await forwardAndLog("notify", parsed.amount, parsed.balance, addat, config);
   if (!upstream.ok) {
     return Response.json(
       { ok: false, error: "forward_failed", upstream, addat, parsed, rawText: text },

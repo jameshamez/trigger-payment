@@ -15,6 +15,11 @@ beforeAll(() => {
   process.env.TARGET_URL = "https://p-points.com/sms_add.php";
 });
 
+beforeEach(() => {
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+});
+
 afterEach(() => vi.restoreAllMocks());
 
 const post = (body: unknown) =>
@@ -164,5 +169,56 @@ describe("POST /api/notify", () => {
     expect(response.status).toBe(502);
     expect(json.error).toBe("forward_failed");
     expect(json.upstream.status).toBe(500);
+  });
+
+  describe("when Supabase logging is configured", () => {
+    beforeEach(() => {
+      process.env.SUPABASE_URL = "https://xyzcompany.supabase.co";
+      process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+    });
+
+    it("records the forward attempt in Supabase", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("OK", { status: 200 })) // p-points.com
+        .mockResolvedValueOnce(new Response("", { status: 201 })); // Supabase insert
+      vi.stubGlobal("fetch", fetchMock);
+
+      await post({ text: SAMPLE });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [logUrl, logInit] = fetchMock.mock.calls[1];
+      expect(logUrl).toBe("https://xyzcompany.supabase.co/rest/v1/forward_logs");
+      expect(JSON.parse(logInit.body)).toMatchObject({
+        source: "notify",
+        amount: "200.00",
+        balance: "207.85",
+        ok: true,
+        response_status: 200,
+      });
+    });
+
+    it("still logs when p-points.com fails", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("nope", { status: 500 })) // p-points.com
+        .mockResolvedValueOnce(new Response("", { status: 201 })); // Supabase insert
+      vi.stubGlobal("fetch", fetchMock);
+
+      await post({ text: SAMPLE });
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const [, logInit] = fetchMock.mock.calls[1];
+      expect(JSON.parse(logInit.body)).toMatchObject({ ok: false, response_status: 500 });
+    });
+
+    it("does not log a skipped message, since nothing was sent", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      await post({ text: "สวัสดีครับ ประชุมกี่โมง" });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 });

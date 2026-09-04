@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getConfig, getGmailConfig } from "./config";
+import { getConfig, getGmailConfig, getSupabaseLogConfig } from "./config";
 
 const ENV_KEYS = [
   "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL", "REQUIRE_SENDER",
   "GMAIL_USER", "GMAIL_APP_PASSWORD", "BANK_EMAIL_FROM", "GMAIL_MAILBOX", "POLL_SECRET",
+  "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
 ];
 let saved: Record<string, string | undefined>;
 
@@ -81,5 +82,31 @@ describe("getGmailConfig", () => {
   it("throws naming the variable that is missing", () => {
     delete process.env.GMAIL_APP_PASSWORD;
     expect(() => getGmailConfig()).toThrow(/GMAIL_APP_PASSWORD/);
+  });
+});
+
+describe("getSupabaseLogConfig", () => {
+  it("reads the url and service role key from the environment", () => {
+    process.env.SUPABASE_URL = "https://xyzcompany.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+
+    expect(getSupabaseLogConfig()).toEqual({
+      url: "https://xyzcompany.supabase.co",
+      serviceRoleKey: "service-role-key",
+    });
+  });
+
+  it("returns null when logging is not configured, since it is optional", () => {
+    delete process.env.SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    expect(getSupabaseLogConfig()).toBeNull();
+  });
+
+  it("returns null when only one of the two variables is set", () => {
+    process.env.SUPABASE_URL = "https://xyzcompany.supabase.co";
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    expect(getSupabaseLogConfig()).toBeNull();
   });
 });

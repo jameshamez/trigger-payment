@@ -55,3 +55,20 @@ export function getGmailConfig(): GmailConfig {
     pollSecret: required("POLL_SECRET"),
   };
 }
+
+export type SupabaseLogConfig = {
+  url: string;
+  serviceRoleKey: string;
+};
+
+/**
+ * Unlike {@link getConfig}, missing variables return null rather than
+ * throwing: forwarding to p-points.com must keep working even when logging
+ * has not been set up yet.
+ */
+export function getSupabaseLogConfig(): SupabaseLogConfig | null {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) return null;
+  return { url, serviceRoleKey };
+}
