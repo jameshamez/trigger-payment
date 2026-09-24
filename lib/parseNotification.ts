@@ -20,19 +20,49 @@ export class ParseError extends Error {
 const THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
                      "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
-// Matches "26 ส.ค. 69 15:07". Dots in the month names are escaped so the
-// alternation cannot match across an unexpected character.
+// Matches "26 ส.ค. 69 15:07" and "20 ก.ย. 69, 05:51". Dots in the month names
+// are escaped so the alternation cannot match across an unexpected character,
+// and a comma may stand between the year and the time — K SHOP writes one,
+// KBank LIVE does not.
 const DATETIME_PATTERN = new RegExp(
   String.raw`(\d{1,2})\s*(` +
     THAI_MONTHS.map((m) => m.replace(/\./g, String.raw`\.`)).join("|") +
-    String.raw`)\s*(\d{2})\s+(\d{1,2}):(\d{2})`,
+    String.raw`)\s*(\d{2})[,\s]+(\d{1,2}):(\d{2})`,
 );
 
 const AMOUNT_PATTERN = /จำนวนเงิน\s*([\d,]+\.\d{2})/;
 const BALANCE_PATTERN = /ยอดเงินคงเหลือ\s*([\d,]+\.\d{2})/;
 
+// K SHOP states the figure on its own, with no label and often no decimals:
+// "20 บาท". Anchored to the line start so a number inside the shop's name
+// cannot be taken for the amount.
+const KSHOP_AMOUNT_PATTERN = /^\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/m;
+
+/**
+ * A K SHOP receipt reports what the shop took, never the account total, so
+ * there is no balance to read. The +CMGR format has no way to leave the field
+ * out, so it is sent as zero.
+ *
+ * Whether p-points.com accepts that is still unconfirmed — ask before relying
+ * on K SHOP as the only source.
+ */
+const NO_BALANCE = "0.00";
+
+export type AlertFormat = "kbank-live" | "k-shop";
+
+/** Which app's alert this is, or null when the text is neither. */
+export function detectFormat(text: string): AlertFormat | null {
+  if (text.includes("รายการเงินเข้า") && text.includes("จำนวนเงิน")) {
+    return "kbank-live";
+  }
+  if (/K\s*SHOP/i.test(text) && KSHOP_AMOUNT_PATTERN.test(text)) {
+    return "k-shop";
+  }
+  return null;
+}
+
 export function isIncomingTransfer(text: string): boolean {
-  return text.includes("รายการเงินเข้า") && text.includes("จำนวนเงิน");
+  return detectFormat(text) !== null;
 }
 
 /**
@@ -53,26 +83,50 @@ export function isFromExpectedSender(text: string, expected: string): boolean {
   return text.toLowerCase().includes(expected.trim().toLowerCase());
 }
 
-export function parseNotification(text: string): ParsedNotification {
-  const amount = text.match(AMOUNT_PATTERN);
-  if (!amount) throw new ParseError("amount");
+/** "20" → "20.00"; "1,250.75" and "20.5" are left with their own decimals. */
+function withSatang(figure: string): string {
+  if (!figure.includes(".")) return `${figure}.00`;
+  const [baht, satang] = figure.split(".");
+  return `${baht}.${satang.padEnd(2, "0")}`;
+}
 
-  const balance = text.match(BALANCE_PATTERN);
-  if (!balance) throw new ParseError("balance");
-
+/** The date and time, which both formats write the same way apart from a comma. */
+function parseThaiDateTime(text: string) {
   const datetime = text.match(DATETIME_PATTERN);
   if (!datetime) throw new ParseError("datetime");
 
   const [, day, monthAbbr, buddhistYear, hour, minute] = datetime;
-
   return {
-    amount: amount[1],
-    balance: balance[1],
     day: Number(day),
     month: THAI_MONTHS.indexOf(monthAbbr) + 1,
     // "69" is พ.ศ. 2569 → ค.ศ. 2026 → the 2-digit CE year 26.
     year: (Number(buddhistYear) + 2500 - 543) % 100,
     hour: Number(hour),
     minute: Number(minute),
+  };
+}
+
+export function parseNotification(text: string): ParsedNotification {
+  if (detectFormat(text) === "k-shop") {
+    const amount = text.match(KSHOP_AMOUNT_PATTERN);
+    if (!amount) throw new ParseError("amount");
+
+    return {
+      amount: withSatang(amount[1]),
+      balance: NO_BALANCE,
+      ...parseThaiDateTime(text),
+    };
+  }
+
+  const amount = text.match(AMOUNT_PATTERN);
+  if (!amount) throw new ParseError("amount");
+
+  const balance = text.match(BALANCE_PATTERN);
+  if (!balance) throw new ParseError("balance");
+
+  return {
+    amount: amount[1],
+    balance: balance[1],
+    ...parseThaiDateTime(text),
   };
 }

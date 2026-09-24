@@ -3,11 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const SAMPLE = `รายการเงินเข้า
-26 ส.ค. 69 15:07 น.
-เข้าบัญชี xxx-x-x8972-x
-จำนวนเงิน 200.00 บาท
-ยอดเงินคงเหลือ 207.85 บาท`;
+const SAMPLE = `K SHOP บ้านน้ำตามสั่ง
+20 บาท
+20 ก.ย. 69, 05:51 น.
+ชำระเงินด้วย QR Payment`;
 
 export default function Home() {
   const [text, setText] = useState(SAMPLE);
@@ -36,7 +35,7 @@ export default function Home() {
     <main>
       <h1>LINE → p-points relay</h1>
       <p className="sub">
-        วางข้อความแจ้งเตือนจาก LINE (K PLUS) แล้วกดส่ง เพื่อดูค่าที่ระบบอ่านได้
+        วางข้อความแจ้งเตือนจาก LINE (K SHOP หรือ KBank LIVE) แล้วกดส่ง เพื่อดูค่าที่ระบบอ่านได้
         และ URL ที่จะยิงไป p-points.com — ดู <Link href="/logs">ประวัติการส่ง</Link> ทั้งหมดได้ที่นี่
       </p>
 

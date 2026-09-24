@@ -22,6 +22,53 @@ describe("isIncomingTransfer", () => {
   });
 });
 
+const KSHOP = `K SHOP บ้านน้ำตามสั่ง
+20 บาท
+20 ก.ย. 69, 05:51 น.
+รับชำระจาก นาย ธีรวัฒน์
+ชำระเงินด้วย QR Payment`;
+
+describe("K SHOP alerts", () => {
+  it("recognises one as an incoming transfer", () => {
+    expect(isIncomingTransfer(KSHOP)).toBe(true);
+  });
+
+  it("reads the amount, which carries no label and no decimals", () => {
+    expect(parseNotification(KSHOP).amount).toBe("20.00");
+  });
+
+  it("reads the date, where a comma separates the year from the time", () => {
+    expect(parseNotification(KSHOP)).toMatchObject({
+      day: 20,
+      month: 9,
+      year: 26,
+      hour: 5,
+      minute: 51,
+    });
+  });
+
+  it("reports a zero balance, since a K SHOP receipt carries none", () => {
+    // A shop receipt states what was taken, never the account total. The
+    // +CMGR format has no way to omit the field, so it is sent as zero.
+    expect(parseNotification(KSHOP).balance).toBe("0.00");
+  });
+
+  it("keeps decimals and comma grouping when the amount has them", () => {
+    const larger = KSHOP.replace("20 บาท", "1,250.75 บาท");
+    expect(parseNotification(larger).amount).toBe("1,250.75");
+  });
+
+  it("does not mistake the shop name for the amount", () => {
+    const numeric = KSHOP.replace("บ้านน้ำตามสั่ง", "ร้าน 24 ชม.");
+    expect(parseNotification(numeric).amount).toBe("20.00");
+  });
+
+  it("throws naming the amount when there is no figure at all", () => {
+    const noAmount = KSHOP.replace("20 บาท\n", "");
+    expect(() => parseNotification(noAmount)).toThrow(ParseError);
+  });
+});
+
 describe("isFromExpectedSender", () => {
   it("accepts an alert naming the expected bank", () => {
     expect(isFromExpectedSender(`K PLUS\n${SAMPLE}`, "K PLUS")).toBe(true);

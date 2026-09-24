@@ -1,7 +1,8 @@
 # Bank alert → p-points.com relay
 
-Reads "รายการเงินเข้า" bank alerts, converts them into the `+CMGR:` SMS format
-`p-points.com/sms_add.php` expects, and forwards them for station `S-24001`.
+Reads Kasikorn incoming-money alerts — K SHOP QR receipts or KBank LIVE account
+alerts — converts them into the `+CMGR:` SMS format `p-points.com/sms_add.php`
+expects, and forwards them for station `S-24001`.
 
 There are two ways in. **MacroDroid on Android is the primary one**; reading
 bank email over IMAP is also built and needs no phone, kept as the alternative.
@@ -44,6 +45,7 @@ MacroDroid path needs; the Gmail block can stay empty unless you use it.
 | `BANK_SENDER_ID` | SMS sender id in the `+CMGR:` header |
 | `STN_KEY` | Station key — **placeholder until the real one is issued** |
 | `TARGET_URL` | p-points.com endpoint |
+| `REQUIRE_SENDER` | Which alert to trust — `K SHOP` or `KBank`. Set only one |
 | `GMAIL_USER` | The Gmail address receiving bank alerts |
 | `GMAIL_APP_PASSWORD` | A Google **App Password**, not the account password |
 | `BANK_EMAIL_FROM` | Only unread mail from this address is considered |
@@ -59,6 +61,27 @@ MacroDroid path needs; the Gmail block can stay empty unless you use it.
 Needs an Android phone: iOS and macOS give no app access to other apps'
 notification content, so a spare Android device is required for this path.
 
+### Which alert to capture
+
+Two Kasikorn LINE accounts report incoming money, and they are not
+interchangeable:
+
+| | K SHOP | KBank LIVE |
+|---|---|---|
+| What it is | shop receipt for a QR payment | account alert |
+| Amount | `20 บาท` — no label, often no decimals | `จำนวนเงิน 4,531.00 บาท` |
+| Date | `20 ก.ย. 69, 05:51 น.` (comma) | `5 ก.ย. 69 07:22 น.` |
+| Balance | **none** — relayed as `0.00` | `ยอดเงินคงเหลือ 270,107.51 บาท` |
+
+Both are parsed. `REQUIRE_SENDER` picks which one is trusted, and **only one
+should be set**: a QR payment can raise both alerts, and trusting both relays
+the same money twice.
+
+`K SHOP` is the current default. Whether p-points.com accepts a `0.00` balance
+is still unconfirmed — ask before depending on it.
+
+### Request formats
+
 `POST /api/notify` accepts either:
 
 - **Plain text** (`Content-Type: text/plain`) — the body *is* the alert text.
@@ -68,16 +91,20 @@ notification content, so a spare Android device is required for this path.
 - **JSON** (`Content-Type: application/json`) — `{"text": "...", "dryRun": true}`.
   `dryRun` parses and builds without forwarding; the demo page uses this.
 
-Setup:
+### Setup
 
 1. Install LINE on the phone and log in as a **secondary device**, then make
-   sure the bank's alerts arrive there.
+   sure the alerts arrive there.
 2. Install MacroDroid and add a macro:
-   - **Trigger:** Notification → Notification Received → application: LINE
+   - **Trigger:** Notification → Notification Received → application: LINE.
+     Filter the text to match the source you chose — `K SHOP` or
+     `รายการเงินเข้า` — or leave it unfiltered while finding out what the real
+     notification says.
    - **Action:** Connectivity → HTTP Request, method `POST`, content type
      `text/plain`, URL `https://<your-deployment>/api/notify`, body set to the
-     notification magic text (insert it with MacroDroid's magic text button —
-     the variable name varies by version).
+     notification title followed by its text (insert both with MacroDroid's
+     magic text button — the title carries the sender name that
+     `REQUIRE_SENDER` checks).
 3. Turn **off** battery optimisation for MacroDroid and LINE, or the system
    will kill them in the background and alerts will be missed. Some
    manufacturers (Samsung especially) are aggressive enough to make this setup
