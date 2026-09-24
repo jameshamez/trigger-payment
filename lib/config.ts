@@ -5,16 +5,23 @@ export type Config = {
   stnKey: string;
   targetUrl: string;
   /**
-   * Text that must appear in an alert for it to be trusted — the bank's name as
-   * it shows in the notification, e.g. "K PLUS".
+   * Text that must appear in an alert for it to be trusted — the sending app's
+   * name as the notification carries it, e.g. "K SHOP" or "KBank".
    *
    * MacroDroid fires on every LINE notification, so without this a message
-   * typed by anyone in any chat could be relayed as a real transaction. Empty
-   * disables the check, which is only appropriate while you are still
+   * typed by anyone in any chat could be relayed as a real transaction. It also
+   * picks the source: set only one, because a QR payment can raise both a
+   * K SHOP and a KBank LIVE alert, and trusting both relays it twice.
+   *
+   * Empty disables the check, which is only appropriate while you are still
    * discovering what the real notification text looks like.
    */
   requireSender: string;
+  /** See {@link import("./addatPayload").buildAddatPayload}. */
+  addatFormat: AddatFormat;
 };
+
+export type AddatFormat = "cmgr" | "raw";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -27,9 +34,14 @@ export function getConfig(): Config {
     stnId: required("STN_ID"),
     accountCode: required("ACCOUNT_CODE"),
     bankSenderId: required("BANK_SENDER_ID"),
-    stnKey: required("STN_KEY"),
+    // Optional: an empty key is left off the request entirely, rather than
+    // sent as a placeholder p-points.com would have to reject.
+    stnKey: process.env.STN_KEY ?? "",
     targetUrl: required("TARGET_URL"),
     requireSender: process.env.REQUIRE_SENDER ?? "",
+    // Anything other than an explicit "raw" keeps the proven +CMGR shape, so a
+    // typo in the variable cannot silently change what p-points.com receives.
+    addatFormat: process.env.ADDAT_FORMAT?.trim().toLowerCase() === "raw" ? "raw" : "cmgr",
   };
 }
 

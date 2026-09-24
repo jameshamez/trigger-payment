@@ -1,6 +1,6 @@
 import type { Config } from "./config";
 import type { BankEmail, MailClient } from "./gmail";
-import { buildAddat } from "./buildAddat";
+import { buildAddatPayload } from "./addatPayload";
 import { forwardAndLog } from "./forwardAndLog";
 import {
   isFromExpectedSender,
@@ -56,7 +56,7 @@ async function processEmail(email: BankEmail, config: Config): Promise<PollOutco
     throw error;
   }
 
-  const addat = buildAddat(parsed, config);
+  const addat = buildAddatPayload(body, parsed, config);
   const upstream = await forwardAndLog("poll", parsed.amount, parsed.balance, addat, config);
   if (!upstream.ok) {
     return {

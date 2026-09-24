@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getConfig, getGmailConfig, getSupabaseLogConfig } from "./config";
 
 const ENV_KEYS = [
-  "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL", "REQUIRE_SENDER",
+  "STN_ID", "ACCOUNT_CODE", "BANK_SENDER_ID", "STN_KEY", "TARGET_URL", "REQUIRE_SENDER", "ADDAT_FORMAT",
   "GMAIL_USER", "GMAIL_APP_PASSWORD", "BANK_EMAIL_FROM", "GMAIL_MAILBOX", "POLL_SECRET",
   "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
 ];
@@ -35,7 +35,35 @@ describe("getConfig", () => {
       stnKey: "22162",
       targetUrl: "https://p-points.com/sms_add.php",
       requireSender: "K PLUS",
+      addatFormat: "cmgr",
     });
+  });
+
+  it("switches the payload to raw only on an exact ADDAT_FORMAT=raw", () => {
+    process.env.STN_ID = "S-24001";
+    process.env.ACCOUNT_CODE = "X-7689";
+    process.env.BANK_SENDER_ID = "756697110107";
+    process.env.TARGET_URL = "https://p-points.com/sms_add.php";
+
+    process.env.ADDAT_FORMAT = " RAW ";
+    expect(getConfig().addatFormat).toBe("raw");
+
+    // A typo must not silently change what p-points.com receives.
+    process.env.ADDAT_FORMAT = "rawe";
+    expect(getConfig().addatFormat).toBe("cmgr");
+
+    delete process.env.ADDAT_FORMAT;
+    expect(getConfig().addatFormat).toBe("cmgr");
+  });
+
+  it("treats the station key as optional, so it can be left off the request", () => {
+    process.env.STN_ID = "S-24001";
+    process.env.ACCOUNT_CODE = "X-7689";
+    process.env.BANK_SENDER_ID = "756697110107";
+    process.env.TARGET_URL = "https://p-points.com/sms_add.php";
+    delete process.env.STN_KEY;
+
+    expect(getConfig().stnKey).toBe("");
   });
 
   it("leaves requireSender empty when it is not set, disabling the check", () => {

@@ -11,7 +11,9 @@ export function buildTargetUrl(addat: string, config: Config): string {
   const url = new URL(config.targetUrl);
   url.searchParams.set("stn_id", config.stnId);
   url.searchParams.set("addat", addat);
-  url.searchParams.set("key", config.stnKey);
+  // Left off when unset: sending an empty or placeholder key is worse than
+  // sending none, since p-points.com would have to reject it.
+  if (config.stnKey !== "") url.searchParams.set("key", config.stnKey);
   return url.toString();
 }
 

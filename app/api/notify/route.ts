@@ -1,5 +1,5 @@
 import { getConfig } from "@/lib/config";
-import { buildAddat } from "@/lib/buildAddat";
+import { buildAddatPayload } from "@/lib/addatPayload";
 import { buildTargetUrl } from "@/lib/forwardToPPoints";
 import { forwardAndLog } from "@/lib/forwardAndLog";
 import {
@@ -7,6 +7,7 @@ import {
   isIncomingTransfer,
   parseNotification,
   ParseError,
+  type ParsedNotification,
 } from "@/lib/parseNotification";
 
 export const runtime = "nodejs";
@@ -82,20 +83,23 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  let parsed;
+  // In raw mode the figures are not needed to build the payload, so a wording
+  // change at the bank must not stop a real payment: read them if we can, for
+  // the response and the log, and carry on if we cannot.
+  let parsed: ParsedNotification | null = null;
   try {
     parsed = parseNotification(text);
   } catch (error) {
-    if (error instanceof ParseError) {
+    if (!(error instanceof ParseError)) throw error;
+    if (config.addatFormat !== "raw") {
       return Response.json(
         { ok: false, error: "parse_error", field: error.field, rawText: text },
         { status: 400 },
       );
     }
-    throw error;
   }
 
-  const addat = buildAddat(parsed, config);
+  const addat = buildAddatPayload(text, parsed, config);
 
   if (dryRun) {
     return Response.json({
@@ -108,7 +112,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const upstream = await forwardAndLog("notify", parsed.amount, parsed.balance, addat, config);
+  const upstream = await forwardAndLog("notify", parsed?.amount ?? "", parsed?.balance ?? "", addat, config);
   if (!upstream.ok) {
     return Response.json(
       { ok: false, error: "forward_failed", upstream, addat, parsed, rawText: text },
