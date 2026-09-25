@@ -34,3 +34,27 @@ export async function forwardAndLog(
 
   return { ...upstream, log };
 }
+
+/**
+ * Records a request that was never forwarded, and why.
+ *
+ * Without this an empty /logs page means either "nothing reached us" or
+ * "everything reached us and was rejected" — two very different problems that
+ * looked identical while chasing a phone that would not trigger. The raw text
+ * goes in the addat column, so what actually arrived can be read back.
+ */
+export async function logSkipped(
+  source: ForwardLogEntry["source"],
+  reason: string,
+  rawText: string,
+): Promise<LogOutcome> {
+  return createForwardLogger(getSupabaseLogConfig()).log({
+    source,
+    amount: "",
+    balance: "",
+    addat: rawText,
+    ok: false,
+    responseStatus: 0,
+    responseBody: `ข้าม: ${reason}`,
+  });
+}

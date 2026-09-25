@@ -212,13 +212,40 @@ describe("POST /api/notify", () => {
       expect(JSON.parse(logInit.body)).toMatchObject({ ok: false, response_status: 500 });
     });
 
-    it("does not log a skipped message, since nothing was sent", async () => {
-      const fetchMock = vi.fn();
+    it("records a skipped message, with the reason and what arrived", async () => {
+      // An empty /logs page otherwise means either "nothing reached us" or
+      // "everything reached us and was rejected", which look identical while
+      // chasing a phone that will not trigger.
+      const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
       vi.stubGlobal("fetch", fetchMock);
 
-      await post({ text: "สวัสดีครับ ประชุมกี่โมง" });
+      const text = "สวัสดีครับ ประชุมกี่โมง";
+      await post({ text });
 
-      expect(fetchMock).not.toHaveBeenCalled();
+      // Only the Supabase insert — nothing was forwarded to p-points.com.
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toContain("/rest/v1/forward_logs");
+      expect(JSON.parse(init.body)).toMatchObject({
+        source: "notify",
+        ok: false,
+        response_status: 0,
+        response_body: "ข้าม: not_an_incoming_transfer",
+        addat: text,
+      });
+    });
+
+    it("records a message refused for its sender", async () => {
+      process.env.REQUIRE_SENDER = "K SHOP";
+      const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      await post({ text: SAMPLE });
+      delete process.env.REQUIRE_SENDER;
+
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+        response_body: "ข้าม: sender_not_trusted",
+      });
     });
   });
 });

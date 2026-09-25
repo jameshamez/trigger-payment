@@ -1,7 +1,7 @@
 import { getConfig } from "@/lib/config";
 import { buildAddatPayload } from "@/lib/addatPayload";
 import { buildTargetUrl } from "@/lib/forwardToPPoints";
-import { forwardAndLog } from "@/lib/forwardAndLog";
+import { forwardAndLog, logSkipped } from "@/lib/forwardAndLog";
 import {
   isFromExpectedSender,
   isIncomingTransfer,
@@ -64,10 +64,12 @@ export async function POST(request: Request): Promise<Response> {
   // forwards every LINE notification, so a message typed by anyone in any chat
   // would otherwise be relayed as a real transaction.
   if (!isFromExpectedSender(text, config.requireSender)) {
+    const log = await logSkipped("notify", "sender_not_trusted", text);
     return Response.json({
       ok: true,
       skipped: true,
       reason: "sender_not_trusted",
+      log,
       rawText: text,
     });
   }
@@ -75,10 +77,12 @@ export async function POST(request: Request): Promise<Response> {
   // Unrelated LINE messages are not failures — 200 keeps MacroDroid's
   // trigger history clean and stops it retrying.
   if (!isIncomingTransfer(text)) {
+    const log = await logSkipped("notify", "not_an_incoming_transfer", text);
     return Response.json({
       ok: true,
       skipped: true,
       reason: "not_an_incoming_transfer",
+      log,
       rawText: text,
     });
   }
