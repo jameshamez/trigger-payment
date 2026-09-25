@@ -57,3 +57,30 @@ describe("forwardToPPoints", () => {
     expect(result.body).toContain("ECONNREFUSED");
   });
 });
+
+describe("reading p-points.com's own verdict", () => {
+  const ok = '<html><body>{"RES":"OK","stn_id":"S-24001","addat":"[+CMGR: ..."}';
+  const nok = '<html><body>{"RES":"NOK","stn_id":"S-24001"}';
+
+  it("treats RES:NOK as a failure even though the HTTP status is 200", async () => {
+    // p-points.com answers 200 whether it accepted the row or not; only the
+    // RES field says which. Without this a rejected payment is recorded as
+    // delivered and never retried.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(nok, { status: 200 })));
+
+    expect(await forwardToPPoints(ADDAT, CONFIG)).toMatchObject({ ok: false, status: 200 });
+  });
+
+  it("treats RES:OK as success", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(ok, { status: 200 })));
+
+    expect(await forwardToPPoints(ADDAT, CONFIG)).toMatchObject({ ok: true });
+  });
+
+  it("falls back to the HTTP status when there is no RES field", async () => {
+    // An error page or a changed response shape must not be read as a verdict.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>hi</html>", { status: 200 })));
+
+    expect((await forwardToPPoints(ADDAT, CONFIG)).ok).toBe(true);
+  });
+});
