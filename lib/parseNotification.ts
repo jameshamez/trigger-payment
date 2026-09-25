@@ -33,10 +33,19 @@ const DATETIME_PATTERN = new RegExp(
 const AMOUNT_PATTERN = /จำนวนเงิน\s*([\d,]+\.\d{2})/;
 const BALANCE_PATTERN = /ยอดเงินคงเหลือ\s*([\d,]+\.\d{2})/;
 
-// K SHOP states the figure on its own, with no label and often no decimals:
-// "20 บาท". Anchored to the line start so a number inside the shop's name
-// cannot be taken for the amount.
-const KSHOP_AMOUNT_PATTERN = /^\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/m;
+// K SHOP writes the figure two ways, and both reach us.
+//
+// The Android notification labels it — "จำนวนเงิน 2 บาท วันที่ 25 ก.ย." — and
+// that label is what keeps the date's day number from being read as the
+// amount. The chat bubble's card states it bare on its own line instead,
+// "20 บาท", which is anchored to a line start so a number inside the shop's
+// name cannot win. Neither form is guaranteed to carry satang.
+const KSHOP_LABELLED_AMOUNT = /จำนวนเงิน\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/;
+const KSHOP_BARE_AMOUNT = /^\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/m;
+
+function matchKShopAmount(text: string): RegExpMatchArray | null {
+  return text.match(KSHOP_LABELLED_AMOUNT) ?? text.match(KSHOP_BARE_AMOUNT);
+}
 
 /**
  * A K SHOP receipt reports what the shop took, never the account total, so
@@ -55,7 +64,7 @@ export function detectFormat(text: string): AlertFormat | null {
   if (text.includes("รายการเงินเข้า") && text.includes("จำนวนเงิน")) {
     return "kbank-live";
   }
-  if (/K\s*SHOP/i.test(text) && KSHOP_AMOUNT_PATTERN.test(text)) {
+  if (/K\s*SHOP/i.test(text) && matchKShopAmount(text) !== null) {
     return "k-shop";
   }
   return null;
@@ -108,7 +117,7 @@ function parseThaiDateTime(text: string) {
 
 export function parseNotification(text: string): ParsedNotification {
   if (detectFormat(text) === "k-shop") {
-    const amount = text.match(KSHOP_AMOUNT_PATTERN);
+    const amount = matchKShopAmount(text);
     if (!amount) throw new ParseError("amount");
 
     return {

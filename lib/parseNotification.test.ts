@@ -28,6 +28,45 @@ const KSHOP = `K SHOP บ้านน้ำตามสั่ง
 รับชำระจาก นาย ธีรวัฒน์
 ชำระเงินด้วย QR Payment`;
 
+// What the Android notification actually carries, captured from a real
+// payment. It is not the chat bubble's rich card: the bank writes a separate
+// one-line summary, with the figure labelled and the date prefixed.
+const KSHOP_NOTIFICATION = `KBank Live รายการรับชำระเงิน K SHOP จาก นาย ณรรถพงษ์
+จำนวนเงิน 2 บาท วันที่ 25 ก.ย. 69, 10:43 น.`;
+
+describe("the real K SHOP notification", () => {
+  it("is recognised as an incoming transfer", () => {
+    expect(isIncomingTransfer(KSHOP_NOTIFICATION)).toBe(true);
+  });
+
+  it("reads every field", () => {
+    expect(parseNotification(KSHOP_NOTIFICATION)).toEqual({
+      amount: "2.00",
+      balance: "0.00",
+      day: 25,
+      month: 9,
+      year: 26,
+      hour: 10,
+      minute: 43,
+    });
+  });
+
+  it("reads it the same when collapsed onto one line", () => {
+    const collapsed = KSHOP_NOTIFICATION.replace(/\n/g, " ");
+    expect(parseNotification(collapsed)).toMatchObject({ amount: "2.00", day: 25 });
+  });
+
+  it("keeps satang and comma grouping when present", () => {
+    const larger = KSHOP_NOTIFICATION.replace("2 บาท", "1,250.75 บาท");
+    expect(parseNotification(larger).amount).toBe("1,250.75");
+  });
+
+  it("does not take the date's day number for the amount", () => {
+    // "25" in "วันที่ 25 ก.ย." must never win over the 2 after จำนวนเงิน.
+    expect(parseNotification(KSHOP_NOTIFICATION).amount).toBe("2.00");
+  });
+});
+
 describe("K SHOP alerts", () => {
   it("recognises one as an incoming transfer", () => {
     expect(isIncomingTransfer(KSHOP)).toBe(true);
