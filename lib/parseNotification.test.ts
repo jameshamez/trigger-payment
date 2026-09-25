@@ -67,6 +67,57 @@ describe("the real K SHOP notification", () => {
   });
 });
 
+// The K SHOP *app*, as opposed to the KBank Live LINE account. It abbreviates
+// baht to "บ." and carries no timestamp at all.
+const KSHOP_APP = "K SHOP ได้รับชำระเงิน 1.00 บ. จาก นาย ณรรถพงษ์";
+
+describe("the K SHOP app notification", () => {
+  // 20:15 in Bangkok on 25 Sep 2026, written as the UTC instant it is.
+  const RECEIVED = new Date("2026-09-25T13:15:00Z");
+
+  it("is recognised as an incoming transfer", () => {
+    expect(isIncomingTransfer(KSHOP_APP)).toBe(true);
+  });
+
+  it("reads the amount written with บ. rather than บาท", () => {
+    expect(parseNotification(KSHOP_APP, RECEIVED).amount).toBe("1.00");
+  });
+
+  it("falls back to the time of receipt, in Bangkok time", () => {
+    // Vercel runs in UTC; using the raw clock would date every payment 7
+    // hours early and put late-evening ones on the wrong day entirely.
+    expect(parseNotification(KSHOP_APP, RECEIVED)).toMatchObject({
+      day: 25,
+      month: 9,
+      year: 26,
+      hour: 20,
+      minute: 15,
+    });
+  });
+
+  it("rolls over to the next Bangkok day late in the UTC evening", () => {
+    // 19:30 UTC on the 25th is 02:30 on the 26th in Bangkok.
+    expect(parseNotification(KSHOP_APP, new Date("2026-09-25T19:30:00Z")))
+      .toMatchObject({ day: 26, month: 9, hour: 2, minute: 30 });
+  });
+
+  it("reports a zero balance, since the app states none", () => {
+    expect(parseNotification(KSHOP_APP, RECEIVED).balance).toBe("0.00");
+  });
+
+  it("handles a larger amount with comma grouping", () => {
+    const larger = KSHOP_APP.replace("1.00 บ.", "2,450.50 บ.");
+    expect(parseNotification(larger, RECEIVED).amount).toBe("2,450.50");
+  });
+
+  it("still prefers a stated time when the alert carries one", () => {
+    // The LINE-account format must keep using its own timestamp.
+    expect(parseNotification(KSHOP_NOTIFICATION, RECEIVED)).toMatchObject({
+      day: 25, month: 9, hour: 10, minute: 43,
+    });
+  });
+});
+
 describe("K SHOP alerts", () => {
   it("recognises one as an incoming transfer", () => {
     expect(isIncomingTransfer(KSHOP)).toBe(true);

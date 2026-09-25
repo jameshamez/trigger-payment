@@ -249,3 +249,39 @@ describe("POST /api/notify", () => {
     });
   });
 });
+
+describe("POST /api/notify in raw pass-through mode", () => {
+  beforeEach(() => {
+    process.env.ADDAT_FORMAT = "raw";
+    process.env.REQUIRE_SENDER = "K SHOP";
+  });
+  afterEach(() => {
+    delete process.env.ADDAT_FORMAT;
+    delete process.env.REQUIRE_SENDER;
+  });
+
+  it("forwards an alert whose wording it has never seen", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    // No amount, no date, nothing the parser knows — it still goes out, so a
+    // new K SHOP wording cannot silently drop a payment.
+    const text = "K SHOP รูปแบบใหม่ที่ยังไม่เคยเห็น";
+    const json = await (await postPlainText(text)).json();
+
+    expect(json.ok).toBe(true);
+    expect(json.addat).toBe(text);
+    expect(fetchMock.mock.calls[0][0]).toContain("stn_id=S-24001");
+  });
+
+  it("still refuses an alert from an untrusted sender", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const json = await (await postPlainText("ใครก็ไม่รู้ส่งมา 500 บาท")).json();
+
+    expect(json.skipped).toBe(true);
+    expect(json.reason).toBe("sender_not_trusted");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

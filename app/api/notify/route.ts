@@ -74,9 +74,13 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  // Unrelated LINE messages are not failures — 200 keeps MacroDroid's
+  // Raw mode forwards the alert as it stands, so understanding its wording is
+  // not a precondition — a format we have never seen still gets through
+  // instead of waiting on a parser. The sender check above remains the guard.
+  //
+  // Unrecognised alerts are otherwise not failures: 200 keeps MacroDroid's
   // trigger history clean and stops it retrying.
-  if (!isIncomingTransfer(text)) {
+  if (config.addatFormat !== "raw" && !isIncomingTransfer(text)) {
     const log = await logSkipped("notify", "not_an_incoming_transfer", text);
     return Response.json({
       ok: true,

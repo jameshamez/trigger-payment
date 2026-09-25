@@ -43,8 +43,48 @@ const BALANCE_PATTERN = /ยอดเงินคงเหลือ\s*([\d,]+\.\
 const KSHOP_LABELLED_AMOUNT = /จำนวนเงิน\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/;
 const KSHOP_BARE_AMOUNT = /^\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/m;
 
+// The K SHOP app's own notification: "ได้รับชำระเงิน 1.00 บ. จาก นาย …".
+// It abbreviates baht to "บ." and states no time at all.
+const KSHOP_APP_AMOUNT = /ได้รับชำระเงิน\s*([\d,]+(?:\.\d{1,2})?)\s*บ/;
+
 function matchKShopAmount(text: string): RegExpMatchArray | null {
-  return text.match(KSHOP_LABELLED_AMOUNT) ?? text.match(KSHOP_BARE_AMOUNT);
+  return (
+    text.match(KSHOP_APP_AMOUNT) ??
+    text.match(KSHOP_LABELLED_AMOUNT) ??
+    text.match(KSHOP_BARE_AMOUNT)
+  );
+}
+
+/**
+ * The date and time in Bangkok, for alerts that carry none of their own.
+ *
+ * The K SHOP app states only the amount and the payer, so the moment the
+ * relay receives the alert stands in for when the payment happened — they are
+ * seconds apart in practice. It must be read in Bangkok time explicitly:
+ * Vercel runs in UTC, which would date every payment seven hours early and
+ * put late-evening ones on the previous day.
+ */
+function bangkokClock(now: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    day: value("day"),
+    month: value("month"),
+    year: value("year"),
+    hour: value("hour") % 24, // "24" at midnight in some runtimes.
+    minute: value("minute"),
+  };
 }
 
 /**
@@ -99,10 +139,10 @@ function withSatang(figure: string): string {
   return `${baht}.${satang.padEnd(2, "0")}`;
 }
 
-/** The date and time, which both formats write the same way apart from a comma. */
+/** The stated date and time, or null when the alert gives none. */
 function parseThaiDateTime(text: string) {
   const datetime = text.match(DATETIME_PATTERN);
-  if (!datetime) throw new ParseError("datetime");
+  if (!datetime) return null;
 
   const [, day, monthAbbr, buddhistYear, hour, minute] = datetime;
   return {
@@ -115,7 +155,10 @@ function parseThaiDateTime(text: string) {
   };
 }
 
-export function parseNotification(text: string): ParsedNotification {
+export function parseNotification(
+  text: string,
+  now: Date = new Date(),
+): ParsedNotification {
   if (detectFormat(text) === "k-shop") {
     const amount = matchKShopAmount(text);
     if (!amount) throw new ParseError("amount");
@@ -123,7 +166,7 @@ export function parseNotification(text: string): ParsedNotification {
     return {
       amount: withSatang(amount[1]),
       balance: NO_BALANCE,
-      ...parseThaiDateTime(text),
+      ...(parseThaiDateTime(text) ?? bangkokClock(now)),
     };
   }
 
@@ -133,9 +176,8 @@ export function parseNotification(text: string): ParsedNotification {
   const balance = text.match(BALANCE_PATTERN);
   if (!balance) throw new ParseError("balance");
 
-  return {
-    amount: amount[1],
-    balance: balance[1],
-    ...parseThaiDateTime(text),
-  };
+  const datetime = parseThaiDateTime(text);
+  if (!datetime) throw new ParseError("datetime");
+
+  return { amount: amount[1], balance: balance[1], ...datetime };
 }
