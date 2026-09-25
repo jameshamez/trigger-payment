@@ -120,5 +120,5 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  return Response.json({ ok: true, parsed, addat, upstream, rawText: text });
+  return Response.json({ ok: true, parsed, addat, upstream, log: upstream.log, rawText: text });
 }

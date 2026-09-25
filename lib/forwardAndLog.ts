@@ -1,7 +1,12 @@
 import type { Config } from "./config";
 import { getSupabaseLogConfig } from "./config";
 import { forwardToPPoints, type ForwardResult } from "./forwardToPPoints";
-import { createForwardLogger, type ForwardLogEntry } from "./logForward";
+import { createForwardLogger, type ForwardLogEntry, type LogOutcome } from "./logForward";
+
+export type ForwardAndLogResult = ForwardResult & {
+  /** Whether the attempt reached the /logs table, and why not when it did not. */
+  log: LogOutcome;
+};
 
 /**
  * The one place both `/api/notify` and `/api/poll` forward to p-points.com,
@@ -14,10 +19,10 @@ export async function forwardAndLog(
   balance: string,
   addat: string,
   config: Config,
-): Promise<ForwardResult> {
+): Promise<ForwardAndLogResult> {
   const upstream = await forwardToPPoints(addat, config);
 
-  await createForwardLogger(getSupabaseLogConfig()).log({
+  const log = await createForwardLogger(getSupabaseLogConfig()).log({
     source,
     amount,
     balance,
@@ -27,5 +32,5 @@ export async function forwardAndLog(
     responseBody: upstream.body,
   });
 
-  return upstream;
+  return { ...upstream, log };
 }

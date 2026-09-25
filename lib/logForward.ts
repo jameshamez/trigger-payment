@@ -10,8 +10,22 @@ export type ForwardLogEntry = {
   responseBody: string;
 };
 
+/**
+ * What became of one log write.
+ *
+ * Reported back rather than only written to the console, because a silent
+ * logging failure is indistinguishable from "nothing has happened yet" — the
+ * /logs page shows an empty table either way. Returning the reason lets a
+ * single test request say which it is.
+ */
+export type LogOutcome =
+  | { logged: true }
+  | { logged: false; reason: "not_configured" }
+  | { logged: false; reason: "rejected"; status: number; detail: string }
+  | { logged: false; reason: "unreachable"; detail: string };
+
 export interface ForwardLogger {
-  log(entry: ForwardLogEntry): Promise<void>;
+  log(entry: ForwardLogEntry): Promise<LogOutcome>;
 }
 
 /**
@@ -23,8 +37,8 @@ export interface ForwardLogger {
  */
 export function createForwardLogger(config: SupabaseLogConfig | null): ForwardLogger {
   return {
-    async log(entry: ForwardLogEntry): Promise<void> {
-      if (!config) return;
+    async log(entry: ForwardLogEntry): Promise<LogOutcome> {
+      if (!config) return { logged: false, reason: "not_configured" };
 
       try {
         const response = await fetch(`${config.url}/rest/v1/forward_logs`, {
@@ -49,10 +63,15 @@ export function createForwardLogger(config: SupabaseLogConfig | null): ForwardLo
           }),
         });
         if (!response.ok) {
-          console.error("forward log insert failed", response.status, await response.text());
+          const detail = (await response.text()).slice(0, 300);
+          console.error("forward log insert failed", response.status, detail);
+          return { logged: false, reason: "rejected", status: response.status, detail };
         }
+        return { logged: true };
       } catch (error) {
-        console.error("forward log insert failed", error);
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error("forward log insert failed", detail);
+        return { logged: false, reason: "unreachable", detail };
       }
     },
   };

@@ -51,19 +51,45 @@ describe("createForwardLogger", () => {
     });
   });
 
-  it("does not throw when Supabase rejects the insert", async () => {
+  it("reports a rejected insert instead of throwing, with the reason", async () => {
+    // The case that actually bit us: RLS refusing an insert made with the
+    // anon key. Nothing appeared in /logs and nothing said why.
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("bad request", { status: 400 })),
+      vi.fn().mockResolvedValue(
+        new Response('{"message":"permission denied"}', { status: 401 }),
+      ),
     );
 
-    await expect(createForwardLogger(CONFIG).log(ENTRY)).resolves.toBeUndefined();
+    expect(await createForwardLogger(CONFIG).log(ENTRY)).toEqual({
+      logged: false,
+      reason: "rejected",
+      status: 401,
+      detail: '{"message":"permission denied"}',
+    });
   });
 
-  it("does not throw when the network request fails", async () => {
+  it("reports an unreachable Supabase instead of throwing", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
 
-    await expect(createForwardLogger(CONFIG).log(ENTRY)).resolves.toBeUndefined();
+    expect(await createForwardLogger(CONFIG).log(ENTRY)).toMatchObject({
+      logged: false,
+      reason: "unreachable",
+      detail: "ECONNREFUSED",
+    });
+  });
+
+  it("reports success when the row goes in", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 201 })));
+
+    expect(await createForwardLogger(CONFIG).log(ENTRY)).toEqual({ logged: true });
+  });
+
+  it("says so when Supabase is not configured at all", async () => {
+    expect(await createForwardLogger(null).log(ENTRY)).toEqual({
+      logged: false,
+      reason: "not_configured",
+    });
   });
 
   it("bounds the request with a timeout, so a stalled Supabase cannot hang the caller", async () => {
