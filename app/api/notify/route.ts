@@ -123,7 +123,7 @@ export async function POST(request: Request): Promise<Response> {
   const upstream = await forwardAndLog("notify", parsed?.amount ?? "", parsed?.balance ?? "", addat, config);
   if (!upstream.ok) {
     return Response.json(
-      { ok: false, error: "forward_failed", upstream, addat, parsed, rawText: text },
+      { ok: false, error: "forward_failed", upstream, log: upstream.log, addat, parsed, rawText: text },
       { status: 502 },
     );
   }
