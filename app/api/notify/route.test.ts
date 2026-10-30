@@ -250,39 +250,38 @@ describe("POST /api/notify", () => {
   });
 });
 
-describe("POST /api/notify in raw pass-through mode", () => {
+describe("POST /api/notify with an alert it cannot read", () => {
   beforeEach(() => {
-    process.env.ADDAT_FORMAT = "raw";
     process.env.REQUIRE_SENDER = "K SHOP";
   });
   afterEach(() => {
-    delete process.env.ADDAT_FORMAT;
     delete process.env.REQUIRE_SENDER;
   });
 
-  it("forwards an alert whose wording it has never seen", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("OK", { status: 200 }));
+  it("refuses rather than forwarding a payment it could not price", async () => {
+    // +CMGR is built from the figures, so an alert whose wording has drifted
+    // cannot be passed through — forwarding it would invent an amount.
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    // No amount, no date, nothing the parser knows — it still goes out, so a
-    // new K SHOP wording cannot silently drop a payment.
-    const text = "K SHOP รูปแบบใหม่ที่ยังไม่เคยเห็น";
-    const json = await (await postPlainText(text)).json();
+    const json = await (await postPlainText("K SHOP รูปแบบใหม่ที่ยังไม่เคยเห็น")).json();
 
-    expect(json.ok).toBe(true);
-    expect(json.addat).toBe(text);
-    expect(fetchMock.mock.calls[0][0]).toContain("stn_id=S-24001");
+    // Skipped rather than failed: nothing was sent, so there is nothing to
+    // retry — but it is recorded, so a wording change does not pass unseen.
+    expect(json.skipped).toBe(true);
+    expect(json.reason).toBe("not_an_incoming_transfer");
+    // Only the Supabase record of the skip — nothing went to p-points.com.
+    expect(fetchMock.mock.calls.every(([url]) => String(url).includes("supabase"))).toBe(true);
   });
 
   it("still refuses an alert from an untrusted sender", async () => {
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const json = await (await postPlainText("ใครก็ไม่รู้ส่งมา 500 บาท")).json();
 
     expect(json.skipped).toBe(true);
     expect(json.reason).toBe("sender_not_trusted");
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

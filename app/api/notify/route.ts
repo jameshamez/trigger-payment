@@ -98,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
   //
   // Unrecognised alerts are otherwise not failures: 200 keeps MacroDroid's
   // trigger history clean and stops it retrying.
-  if (config.addatFormat !== "raw" && !isIncomingTransfer(text)) {
+  if (!isIncomingTransfer(text)) {
     const log = await logSkipped("notify", "not_an_incoming_transfer", text);
     return Response.json({
       ok: true,
@@ -112,20 +112,18 @@ export async function POST(request: Request): Promise<Response> {
   // In raw mode the figures are not needed to build the payload, so a wording
   // change at the bank must not stop a real payment: read them if we can, for
   // the response and the log, and carry on if we cannot.
-  let parsed: ParsedNotification | null = null;
+  let parsed: ParsedNotification;
   try {
     parsed = parseNotification(text);
   } catch (error) {
     if (!(error instanceof ParseError)) throw error;
-    if (config.addatFormat !== "raw") {
-      return Response.json(
-        { ok: false, error: "parse_error", field: error.field, rawText: text },
-        { status: 400 },
-      );
-    }
+    return Response.json(
+      { ok: false, error: "parse_error", field: error.field, rawText: text },
+      { status: 400 },
+    );
   }
 
-  const addat = buildAddatPayload(text, parsed, config);
+  const addat = buildAddatPayload(parsed, config);
 
   if (dryRun) {
     return Response.json({
@@ -138,7 +136,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const upstream = await forwardAndLog("notify", parsed?.amount ?? "", parsed?.balance ?? "", addat, config);
+  const upstream = await forwardAndLog("notify", parsed.amount, parsed.balance, addat, config);
   if (!upstream.ok) {
     return Response.json(
       { ok: false, error: "forward_failed", upstream, log: upstream.log, addat, parsed, rawText: text },

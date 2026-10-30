@@ -17,11 +17,7 @@ export type Config = {
    * discovering what the real notification text looks like.
    */
   requireSender: string;
-  /** See {@link import("./addatPayload").buildAddatPayload}. */
-  addatFormat: AddatFormat;
 };
-
-export type AddatFormat = "cmgr" | "raw";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -39,9 +35,6 @@ export function getConfig(): Config {
     stnKey: process.env.STN_KEY ?? "",
     targetUrl: required("TARGET_URL"),
     requireSender: process.env.REQUIRE_SENDER ?? "",
-    // Anything other than an explicit "raw" keeps the proven +CMGR shape, so a
-    // typo in the variable cannot silently change what p-points.com receives.
-    addatFormat: process.env.ADDAT_FORMAT?.trim().toLowerCase() === "raw" ? "raw" : "cmgr",
   };
 }
 
