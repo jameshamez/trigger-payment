@@ -308,3 +308,52 @@ describe("POST /api/notify with an empty body", () => {
     });
   });
 });
+
+describe("POST /api/notify with a Read Screen dump", () => {
+  // Captured verbatim from the shop's phone.
+  const DUMP = `[read]: 
+-- [index:82]: บ้านน้ำตามสั่ง
+-- [index:87]: 1 บาท
+-- [index:90]: 30 ต.ค. 69, 17:48 น.
+-- [index:95]: รับชำระจาก
+-- [index:97]: นาย ณรรถพงษ์
+-- [index:100]: ชำระเงินด้วย
+-- [index:102]: QR Payment
+-- [index:106]: แชร์แจ้งเตือนจาก
+-- [jp.naver.line.android:id/header_title]: KBank Live
+-- [jp.naver.line.android:id/header_up_button_bg]: กลับ`;
+
+  it("rebuilds the card, reads it, and forwards it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('{"RES":"OK","stn_id":"S-24001"}', { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const json = await (await postPlainText(DUMP)).json();
+
+    expect(json.ok).toBe(true);
+    expect(json.parsed.amount).toBe("1.00");
+    expect(json.parsed).toMatchObject({ day: 30, month: 10, year: 26, hour: 17, minute: 48 });
+    expect(json.rawText).toBe(
+      "K SHOP บ้านน้ำตามสั่ง 1 บาท 30 ต.ค. 69, 17:48 น. " +
+        "รับชำระจาก นาย ณรรถพงษ์ ชำระเงินด้วย QR Payment",
+    );
+  });
+
+  it("does not treat the lock screen as a payment", async () => {
+    // What gets read when LINE never comes forward. Reporting it as
+    // unrecognised is what made that diagnosable in the first place.
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const lockScreen = `[read]: 
+-- [com.samsung.android.app.clockpack:id/common_date]: ศ. 30 ตุลาคม
+-- [com.samsung.android.app.clockpack:id/common_time_area_container]: 17:48`;
+
+    const json = await (await postPlainText(lockScreen)).json();
+
+    expect(json.skipped).toBe(true);
+    // The dump is kept as it arrived, so the log shows what was really read.
+    expect(json.rawText).toContain("clockpack");
+  });
+});

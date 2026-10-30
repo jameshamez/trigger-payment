@@ -1,5 +1,6 @@
 import { getConfig } from "@/lib/config";
 import { buildAddatPayload } from "@/lib/addatPayload";
+import { isScreenDump, normaliseScreenDump } from "@/lib/screenDump";
 import { buildTargetUrl } from "@/lib/forwardToPPoints";
 import { forwardAndLog, logSkipped } from "@/lib/forwardAndLog";
 import {
@@ -62,7 +63,18 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const { text, dryRun } = payload;
+  const { dryRun } = payload;
+
+  // A Read Screen dump is rebuilt into the card before anything else looks at
+  // it, so every check below — trusted sender, wording, figures — works on the
+  // same shape whichever way the phone captured the payment.
+  //
+  // A dump that holds no card (the lock screen, read because LINE never came
+  // forward) normalises to nothing and is left as it arrived, so it is
+  // reported as unrecognised rather than silently treated as empty.
+  const text = isScreenDump(payload.text)
+    ? normaliseScreenDump(payload.text) || payload.text
+    : payload.text;
 
   const config = getConfig();
 

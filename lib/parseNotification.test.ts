@@ -234,3 +234,34 @@ describe("parseNotification", () => {
     }
   });
 });
+
+// What the Read Screen path produces once the card has been rebuilt: the
+// figure sits mid-line, with no label and no line of its own.
+const FROM_SCREEN =
+  "K SHOP บ้านน้ำตามสั่ง 20.23 บาท 30 ต.ค. 69, 17:48 น. " +
+  "รับชำระจาก นาย ณรรถพงษ์ ชำระเงินด้วย QR Payment";
+
+describe("a card rebuilt from the screen", () => {
+  it("is recognised as an incoming transfer", () => {
+    expect(isIncomingTransfer(FROM_SCREEN)).toBe(true);
+  });
+
+  it("reads the amount from mid-line", () => {
+    expect(parseNotification(FROM_SCREEN).amount).toBe("20.23");
+  });
+
+  it("reads the date that follows the amount", () => {
+    expect(parseNotification(FROM_SCREEN)).toMatchObject({
+      day: 30, month: 10, year: 26, hour: 17, minute: 48,
+    });
+  });
+
+  it("does not take a number in the shop's name for the amount", () => {
+    const numericName = FROM_SCREEN.replace("บ้านน้ำตามสั่ง", "ร้าน 24 ชม.");
+    expect(parseNotification(numericName).amount).toBe("20.23");
+  });
+
+  it("handles a whole-baht figure", () => {
+    expect(parseNotification(FROM_SCREEN.replace("20.23 บาท", "1 บาท")).amount).toBe("1.00");
+  });
+});

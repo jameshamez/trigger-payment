@@ -47,11 +47,18 @@ const KSHOP_BARE_AMOUNT = /^\s*([\d,]+(?:\.\d{1,2})?)\s*บาท/m;
 // It abbreviates baht to "บ." and states no time at all.
 const KSHOP_APP_AMOUNT = /ได้รับชำระเงิน\s*([\d,]+(?:\.\d{1,2})?)\s*บ/;
 
+// A card rebuilt from the screen is one long line, so the figure is neither
+// labelled nor at a line start — only the word บาท marks it. Requiring a
+// space before the digits keeps a number inside the shop's name from winning,
+// and the date that follows carries no บาท to be confused with.
+const KSHOP_INLINE_AMOUNT = /(?:^|\s)([\d,]+(?:\.\d{1,2})?)\s*บาท/;
+
 function matchKShopAmount(text: string): RegExpMatchArray | null {
   return (
     text.match(KSHOP_APP_AMOUNT) ??
     text.match(KSHOP_LABELLED_AMOUNT) ??
-    text.match(KSHOP_BARE_AMOUNT)
+    text.match(KSHOP_BARE_AMOUNT) ??
+    text.match(KSHOP_INLINE_AMOUNT)
   );
 }
 
