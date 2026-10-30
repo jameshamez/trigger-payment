@@ -46,11 +46,17 @@ async function readPayload(request: Request): Promise<RequestPayload | null> {
 export async function POST(request: Request): Promise<Response> {
   const payload = await readPayload(request);
   if (payload === null) {
+    // Logged like any other rejection. An empty body is what a phone sends
+    // when the variable it was told to post resolves to nothing, and leaving
+    // that unrecorded makes it indistinguishable from the phone never having
+    // fired at all — the two need very different fixes.
+    const log = await logSkipped("notify", "bad_request (empty or unparseable body)", "");
     return Response.json(
       {
         ok: false,
         error: "bad_request",
         message: 'Send the notification as a plain-text body, or JSON with a "text" field',
+        log,
       },
       { status: 400 },
     );

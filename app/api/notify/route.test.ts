@@ -285,3 +285,26 @@ describe("POST /api/notify in raw pass-through mode", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/notify with an empty body", () => {
+  beforeEach(() => {
+    process.env.SUPABASE_URL = "https://xyzcompany.supabase.co";
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-key";
+  });
+
+  it("records the empty request, so it is not mistaken for silence", async () => {
+    // A phone told to post a variable that resolves to nothing sends an empty
+    // body. Unlogged, that looks identical to the phone never firing — and
+    // the two need completely different fixes.
+    const fetchMock = vi.fn().mockResolvedValue(new Response("", { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await postPlainText("");
+
+    expect(response.status).toBe(400);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      response_body: expect.stringContaining("bad_request"),
+    });
+  });
+});
