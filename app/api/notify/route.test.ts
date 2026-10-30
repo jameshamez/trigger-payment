@@ -47,7 +47,7 @@ describe("POST /api/notify", () => {
     expect(response.status).toBe(200);
     expect(json.ok).toBe(true);
     expect(json.parsed.amount).toBe("200.00");
-    expect(json.addat).toContain("transferred 200.00 Baht");
+    expect(json.addat).toBe(SAMPLE);
     expect(json.upstream.status).toBe(200);
 
     const calledUrl = fetchMock.mock.calls[0][0] as string;
@@ -61,7 +61,7 @@ describe("POST /api/notify", () => {
     const json = await (await post({ text: SAMPLE, dryRun: true })).json();
 
     expect(json.dryRun).toBe(true);
-    expect(json.addat).toContain("transferred 200.00 Baht");
+    expect(json.addat).toBe(SAMPLE);
     expect(json.url).toContain("stn_id=S-24001");
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -78,16 +78,17 @@ describe("POST /api/notify", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns 400 and the raw text when a field cannot be parsed", async () => {
-    // Passes the incoming-transfer check but has no balance line.
-    const text = "รายการเงินเข้า จำนวนเงิน 200.00 บาท";
-    const response = await post({ text });
-    const json = await response.json();
+  it("forwards an alert it could not price, since the endpoint reads it itself", async () => {
+    // line_add.php parses the Thai text on its side, so a wording change here
+    // must not hold back a real payment — the figures are only for /logs.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("OK", { status: 200 })));
 
-    expect(response.status).toBe(400);
-    expect(json.error).toBe("parse_error");
-    expect(json.field).toBe("balance");
-    expect(json.rawText).toBe(text);
+    const text = "รายการเงินเข้า จำนวนเงิน 200.00 บาท";
+    const json = await (await post({ text })).json();
+
+    expect(json.ok).toBe(true);
+    expect(json.addat).toBe(text);
+    expect(json.parsed).toBeNull();
   });
 
   it("returns 400 when text is missing", async () => {

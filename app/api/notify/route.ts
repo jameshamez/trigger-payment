@@ -112,18 +112,17 @@ export async function POST(request: Request): Promise<Response> {
   // In raw mode the figures are not needed to build the payload, so a wording
   // change at the bank must not stop a real payment: read them if we can, for
   // the response and the log, and carry on if we cannot.
-  let parsed: ParsedNotification;
+  // line_add.php reads the text itself, so understanding it is not a
+  // precondition for forwarding — the figures are read only to show in /logs.
+  // A wording change at the bank must not hold back a real payment.
+  let parsed: ParsedNotification | null = null;
   try {
     parsed = parseNotification(text);
   } catch (error) {
     if (!(error instanceof ParseError)) throw error;
-    return Response.json(
-      { ok: false, error: "parse_error", field: error.field, rawText: text },
-      { status: 400 },
-    );
   }
 
-  const addat = buildAddatPayload(parsed, config);
+  const addat = buildAddatPayload(text);
 
   if (dryRun) {
     return Response.json({
@@ -136,7 +135,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const upstream = await forwardAndLog("notify", parsed.amount, parsed.balance, addat, config);
+  const upstream = await forwardAndLog("notify", parsed?.amount ?? "", parsed?.balance ?? "", addat, config);
   if (!upstream.ok) {
     return Response.json(
       { ok: false, error: "forward_failed", upstream, log: upstream.log, addat, parsed, rawText: text },

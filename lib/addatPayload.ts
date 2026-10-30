@@ -1,18 +1,13 @@
-import type { Config } from "./config";
-import type { ParsedNotification } from "./parseNotification";
-import { buildAddat } from "./buildAddat";
-
 /**
- * What goes in the `addat` parameter: always the `+CMGR:` SMS shape that
- * station P-26001's GSM module sends.
+ * What goes in the `addat` parameter: the alert's own text, unchanged.
  *
- * Forwarding the alert's own text was tried against the live endpoint and
- * refused — p-points.com answered `{"RES":"NOK"}` to Thai text in three
- * different wordings, and `{"RES":"OK"}` to +CMGR. There is no second format
- * to choose between, so there is no setting either: a switch whose other
- * position is known to reject every payment is a way to take the relay down,
- * not a feature.
+ * `line_add.php` is the endpoint for alerts captured from LINE, and it reads
+ * Thai text directly — tested against it live, it answers `{"RES":"OK"}` to
+ * the card's wording and `{"RES":"NOK"}` to a `+CMGR:` string. That is the
+ * reverse of `sms_add.php`, which exists for GSM modules and only reads the
+ * SMS shape they emit. Sending the text as it arrived is therefore not a
+ * shortcut — it is what this endpoint is for.
  */
-export function buildAddatPayload(parsed: ParsedNotification, config: Config): string {
-  return buildAddat(parsed, config);
+export function buildAddatPayload(text: string): string {
+  return text;
 }

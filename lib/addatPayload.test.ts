@@ -1,34 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { buildAddatPayload } from "./addatPayload";
-import type { Config } from "./config";
-import type { ParsedNotification } from "./parseNotification";
-
-const CONFIG: Config = {
-  stnId: "S-24001",
-  accountCode: "X-7689",
-  bankSenderId: "756697110107",
-  stnKey: "22162",
-  targetUrl: "https://p-points.com/sms_add.php",
-  requireSender: "",
-};
-
-const PARSED: ParsedNotification = {
-  amount: "20.00", balance: "0.00",
-  day: 20, month: 9, year: 26, hour: 5, minute: 51,
-};
 
 describe("buildAddatPayload", () => {
-  it("always builds the +CMGR shape", () => {
-    // p-points.com answers RES:NOK to anything else — proven against the live
-    // endpoint with Thai text in three different wordings.
-    expect(buildAddatPayload(PARSED, CONFIG)).toBe(
-      '+CMGR: "REC READ","756697110107","","26/09/20,05:51:00+28"20/09/26 05:51' +
-        "A/C X-7689 transferred 20.00 Baht to A/C X-7689 " +
-        "Outstanding Balance 0.00 Baht.OK",
-    );
+  const CARD =
+    "K SHOP บ้านน้ำตามสั่ง 1.11 บาท 30 ต.ค. 69, 19:30 น. " +
+    "รับชำระจาก นาย ณรรถพงษ์ ชำระเงินด้วย QR Payment";
+
+  it("sends the alert's own wording, which is what line_add.php accepts", () => {
+    // Tested against the live endpoint: line_add.php answers RES:OK to this
+    // and RES:NOK to +CMGR — the exact opposite of sms_add.php, which is the
+    // GSM modules' endpoint.
+    expect(buildAddatPayload(CARD)).toBe(CARD);
   });
 
-  it("never passes the alert's own wording through", () => {
-    expect(buildAddatPayload(PARSED, CONFIG)).not.toContain("บาท");
+  it("never rewrites it into the +CMGR shape", () => {
+    expect(buildAddatPayload(CARD)).not.toContain("+CMGR");
   });
 });

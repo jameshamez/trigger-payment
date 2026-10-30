@@ -56,7 +56,7 @@ async function processEmail(email: BankEmail, config: Config): Promise<PollOutco
     throw error;
   }
 
-  const addat = buildAddatPayload(parsed, config);
+  const addat = buildAddatPayload(body);
   const upstream = await forwardAndLog("poll", parsed.amount, parsed.balance, addat, config);
   if (!upstream.ok) {
     return {
